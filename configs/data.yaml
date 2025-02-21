@@ -15,38 +15,7 @@ _trans_datasets: [ Arxiv, Product, Cora, Wisconsin ] # Used when identifying hel
 _all_datasets: [
   Arxiv,
   Cora,
-  # FCora,
-  # Citeseer,
-  # DBLP,
-  # Pubmed,
-  # Wiki,
-  # WkCS,
-  # Reddit,
-
-  # Product,
-  # AmzComp,
-  # AmzPhoto,
-  # BlogCatalog,
-  # LastFMAsia,
-  # Deezer,
-
-  CoCS,
-  # CoPhysics,
-  # Cornell,
-  # Texas,
-  # Wisconsin,
-  # AirBrazil,
-  # AirUS,
-  # AirEU,
-
-  # Chameleon,
-  # Actor,
-  # Squirrel,
-  # Roman,
-  # AmzRatings,
-  # Minesweeper,
-  # Tolokers,
-  # Questions,
+  CoCS
 ]
 
 _dataset_lookup:
@@ -61,6 +30,9 @@ _dataset_lookup:
     eval: ${_all_datasets}
   ArxivXAll:
     train: [ Arxiv ]
+    eval: ${_all_datasets}
+  CoCSXAll:
+    train: [ CoCS ]
     eval: ${_all_datasets}
   ProdXAll:
     train: [ Product ]

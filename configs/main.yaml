@@ -36,7 +36,7 @@ wandb_proj: ${oc.select:env.vars.wandb_proj,${oc.env:WANDB_PROJ,null}}
 wandb_entity: ${oc.select:env.vars.wandb_entity,${oc.env:WANDB_ENTITY,null}}
 wandb:
   id: null
-  name: baseline # ${alias}
+  name: baseline-arxiv
   tags: debug # Wandb tags separated by '.'
   project: ${wandb_proj}
   entity: ${wandb_entity}
