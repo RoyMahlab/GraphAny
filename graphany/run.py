@@ -1,7 +1,10 @@
 import pytorch_lightning as pl
+from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.utilities import rank_zero_only
 import rootutils
 
 root = rootutils.setup_root(__file__, dotenv=True, pythonpath=True, cwd=False)
+from graphany.utils.logging import ExpLogger
 from graphany.utils import logger, timer
 from graphany.utils.experiment import init_experiment
 from graphany.data import GraphDataset, CombinedDataset
@@ -14,6 +17,9 @@ import wandb
 import numpy as np
 import torchmetrics
 from rich.pretty import pretty_repr
+import os
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 mean = lambda input: np.round(np.mean(input).item(), 2)
 
@@ -222,12 +228,23 @@ class InductiveNodeClassification(pl.LightningModule):
         self.compute_and_log_metrics("test")
 
 
+@rank_zero_only
+def define_metric():
+    wandb.define_metric("*", step_metric="epoch")
+
+
+@rank_zero_only
+def summary_updates(logger: ExpLogger, final_results: dict):
+    logger.wandb_summary_update(final_results, finish_wandb=True)
+
+
 @timer()
 @hydra.main(config_path=f"{root}/configs", config_name="main", version_base=None)
 def main(cfg: DictConfig):
     cfg, logger = init_experiment(cfg)
     # Define the default step metric for all metrics
-    wandb.define_metric("*", step_metric="epoch")
+    if cfg.use_wandb:
+        define_metric()
     if torch.cuda.is_available() and cfg.preprocess_device == "gpu":
         preprocess_device = torch.device("cuda")
     else:
@@ -271,6 +288,7 @@ def main(cfg: DictConfig):
         logger=logger,
         accelerator="gpu" if torch.cuda.is_available() and cfg.gpus > 0 else "cpu",
         default_root_dir=cfg.dirs.lightning_root,
+        strategy=DDPStrategy(find_unused_parameters=True),
     )
     dataloaders = {
         "train": combined_dataset.train_dataloader(),
@@ -287,7 +305,8 @@ def main(cfg: DictConfig):
     trainer.test(model, dataloaders=dataloaders["test"])
     final_results = model.res_dict
     logger.critical(pretty_repr(final_results))
-    logger.wandb_summary_update(final_results, finish_wandb=True)
+    if cfg.use_wandb:
+        summary_updates(logger, final_results)
 
 
 if __name__ == "__main__":

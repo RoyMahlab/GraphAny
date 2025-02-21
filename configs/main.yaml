@@ -29,14 +29,14 @@ eval_freq: 5
 project: GraphAny
 _alias: ${dataset}-${oc.select:model.alias,${oc.select:model.name,''}}
 alias: ${rename_alias:${_alias}}
-use_wandb: false
+use_wandb: True
 
 # Change the settings below to your own settings
 wandb_proj: ${oc.select:env.vars.wandb_proj,${oc.env:WANDB_PROJ,null}}
 wandb_entity: ${oc.select:env.vars.wandb_entity,${oc.env:WANDB_ENTITY,null}}
 wandb:
   id: null
-  name: ${alias}
+  name: baseline # ${alias}
   tags: debug # Wandb tags separated by '.'
   project: ${wandb_proj}
   entity: ${wandb_entity}

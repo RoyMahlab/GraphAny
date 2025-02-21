@@ -60,13 +60,20 @@ def init_experiment(cfg):
 @rank_zero_only
 def wandb_init(cfg) -> None:
     os.environ["WANDB_WATCH"] = "false"
+    if cfg.use_wandb is False:
+        return
     try:
         wandb_tags = cfg.wandb.tags.split(".")
         mode = "online" if cfg.use_wandb else "disabled"
 
+        print(mode)
+        print("about to init wandb")
         # ! Create wandb session
         if cfg.wandb.id is None:
             # First time running, create new wandb
+            logger.info(
+                f"Starting new WandB log to {cfg.wandb.project}/{cfg.wandb.name}"
+            )
             os.makedirs(cfg.dirs.wandb_cache, exist_ok=True)
             wandb.init(
                 project=cfg.wandb.project,
@@ -78,6 +85,7 @@ def wandb_init(cfg) -> None:
                 tags=wandb_tags,
                 mode=mode,
             )
+            print("wandb initialized")
         else:  # Resume from previous run
             logger.critical(f"Resume from previous wandb run {cfg.wandb.id}")
             wandb.init(
@@ -97,7 +105,9 @@ def wandb_init(cfg) -> None:
             )
         return
     except Exception as e:
-        print(f"An error occurred during wandb initialization: {e}\n'WANDB NOT INITIALIZED.'")
+        print(
+            f"An error occurred during wandb initialization: {e}\n'WANDB NOT INITIALIZED.'"
+        )
 
     # If wandb not already initialized, set all wandb settings to None.
     os.environ["WANDB_DISABLED"] = "true"
