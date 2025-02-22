@@ -7,10 +7,12 @@ defaults:
   - override /hydra/hydra_logging@_group_: none # Disable Hydra logging
   - override /hydra/job_logging@_group_: none # Disable Hydra logging
 
+wandb_run_name: baseline-CoCS
+
 # ! Path
 project_root: ${hydra:runtime.cwd}
 dirs:
-  data_cache: ${project_root}/data_cache/ # Removable data cache
+  data_cache: ${project_root}/data_cache/${wandb_run_name}/ # Removable data cache
   data_storage: ${project_root}/data/ # Raw data files that shouldn't be removed
   temp: ${project_root}/temp/working_dir/${uid}/ # Removable experiment cache
   lightning_root: ${project_root}/temp/lightning_root/
@@ -36,7 +38,7 @@ wandb_proj: ${oc.select:env.vars.wandb_proj,${oc.env:WANDB_PROJ,null}}
 wandb_entity: ${oc.select:env.vars.wandb_entity,${oc.env:WANDB_ENTITY,null}}
 wandb:
   id: null
-  name: baseline-CoCS
+  name: ${wandb_run_name}
   tags: debug # Wandb tags separated by '.'
   project: ${wandb_proj}
   entity: ${wandb_entity}

@@ -210,16 +210,27 @@ class InductiveNodeClassification(pl.LightningModule):
         combined_res[f"heldout_{split}_acc"] = mean(
             [v for k, v in res.items() if k in self.heldout_metrics]
         )
-        self.log_dict(res, prog_bar=False, logger=True, add_dataloader_idx=False)
         self.log_dict(
-            combined_res, prog_bar=True, logger=True, add_dataloader_idx=False
+            res, prog_bar=False, logger=True, add_dataloader_idx=False, sync_dist=True
+        )
+        self.log_dict(
+            combined_res,
+            prog_bar=True,
+            logger=True,
+            add_dataloader_idx=False,
+            sync_dist=True,
         )
         self.res_dict.update({**res, **combined_res})
 
     def on_train_epoch_end(self):
         self.log_dict(self.loss_dict, on_epoch=True, prog_bar=True, logger=True)
         if len(self.attn_dict):
-            self.log_dict(self.attn_dict, on_epoch=True, prog_bar=False, logger=True)
+            self.log_dict(
+                self.attn_dict,
+                on_epoch=True,
+                prog_bar=False,
+                logger=True,
+            )
 
     def on_validation_epoch_end(self):
         self.compute_and_log_metrics("val")
