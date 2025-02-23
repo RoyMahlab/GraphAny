@@ -10,12 +10,12 @@ n_hops: 2
 dataset: Debug
 train_datasets: ${oc.select:_dataset_lookup.${dataset}.train,${dataset}}
 eval_datasets: ${oc.select:_dataset_lookup.${dataset}.eval,${dataset}}
-_trans_datasets: [ Arxiv, Product, Cora, Wisconsin ] # Used when identifying heldout datasets.
+_trans_datasets: []
 
 _all_datasets: [
-  Arxiv,
-  Cora,
-  CoCS
+  MUTAG,
+  ENZYMES,
+  PROTEINS
 ]
 
 _dataset_lookup:
@@ -36,6 +36,15 @@ _dataset_lookup:
     eval: ${_all_datasets}
   ProdXAll:
     train: [ Product ]
+    eval: ${_all_datasets}
+  MUTAGXAll:
+    train: [ MUTAG ]
+    eval: ${_all_datasets}
+  ENZYMESXAll:
+    train: [ ENZYMES ]
+    eval: ${_all_datasets}
+  PROTEINSXAll:
+    train: [ PROTEINS ]
     eval: ${_all_datasets}
 
   # Train on Arxiv, inference on Cora and Citeseer
@@ -104,3 +113,7 @@ _ds_meta_data:
   #among users. The related classification task is the prediction
   #of gender using the friendship graph and the artists liked.
   Deezer: pyg, DeezerEurope # 28,281, 185,504, 128, 2
+
+  MUTAG: pyg, TUDataset.MUTAG # 188 598 7 2
+  ENZYMES: pyg, TUDataset.ENZYMES # 600 1,812 3 6
+  PROTEINS: pyg, TUDataset.PROTEINS # 1,113 3,615 3 2

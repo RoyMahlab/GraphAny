@@ -280,9 +280,6 @@ class GraphDataset(pl.LightningDataModule):
             self.test_mask,
             self.num_class,
         ) = self.load_dataset(self.data_init_args)
-        # import pdb
-        self.feat = apply_data_transform(self.feat, self.name)
-        # pdb.set_trace()
 
         self.n_nodes, self.n_edges = self.g.num_nodes(), self.g.num_edges()
         self.cache_f_name = osp.join(
@@ -387,6 +384,10 @@ class GraphDataset(pl.LightningDataModule):
             n_nodes = dataset.x.shape[0]
             num_class = dataset.num_classes
             # get node feature
+            import pdb
+
+            pdb.set_trace()
+            # TODO: need to make sure the features fit the right graphs. Same for the labels and the adj matrix
             feat = dataset.x
             label = dataset.y
 
