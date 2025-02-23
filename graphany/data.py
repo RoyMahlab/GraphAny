@@ -183,17 +183,40 @@ class CombinedDataset(pl.LightningDataModule):
         return pl.utilities.combined_loader.CombinedLoader(sub_dataloaders, "max_size")
 
 
+def normal_projection(features_matrix: torch.Tensor, output_dim: int) -> torch.Tensor:
+    return features_matrix @ torch.randn(
+        features_matrix.shape[1], output_dim, device=features_matrix.device
+    )
+
+
+def normalized_data(features_matrix: torch.Tensor) -> torch.Tensor:
+    mean = features_matrix.mean(dim=1, keepdim=True)  # Compute mean for each row
+    std = features_matrix.std(
+        dim=1, unbiased=False, keepdim=True
+    )  # Compute std for each row
+    return (features_matrix - mean) / (
+        std + 1e-8
+    )  # Add epsilon for numerical stability
+
+
+def apply_data_transform(
+    features_matrix: torch.Tensor, ds_name: str, output_dim: int = 256
+):
+    print(f"features normal_projection for ds {ds_name}")
+    return normalized_data(normal_projection(features_matrix, output_dim))
+
+
 class GraphDataset(pl.LightningDataModule):
     def __init__(
-            self,
-            cfg,
-            ds_name,
-            cache_dir,
-            train_batch_size=256,
-            val_test_batch_size=256,
-            n_hops=1,
-            preprocess_device=torch.device("cpu"),
-            permute_label=False,
+        self,
+        cfg,
+        ds_name,
+        cache_dir,
+        train_batch_size=256,
+        val_test_batch_size=256,
+        n_hops=1,
+        preprocess_device=torch.device("cpu"),
+        permute_label=False,
     ):
         super().__init__()
         self.cfg = cfg
@@ -257,6 +280,10 @@ class GraphDataset(pl.LightningDataModule):
             self.test_mask,
             self.num_class,
         ) = self.load_dataset(self.data_init_args)
+        # import pdb
+        self.feat = apply_data_transform(self.feat, self.name)
+        # pdb.set_trace()
+
         self.n_nodes, self.n_edges = self.g.num_nodes(), self.g.num_edges()
         self.cache_f_name = osp.join(
             cache_dir,
@@ -364,9 +391,9 @@ class GraphDataset(pl.LightningDataModule):
             label = dataset.y
 
             if (
-                    hasattr(dataset, "train_mask")
-                    and hasattr(dataset, "val_mask")
-                    and hasattr(dataset, "test_mask")
+                hasattr(dataset, "train_mask")
+                and hasattr(dataset, "val_mask")
+                and hasattr(dataset, "test_mask")
             ):
                 train_mask, val_mask, test_mask = (
                     dataset.train_mask,
@@ -395,7 +422,7 @@ class GraphDataset(pl.LightningDataModule):
             # Modified: Use the ${seed} split if not specified!
             split_index = self.data_init_args.get("split", self.cfg.seed)
             # Avoid invalid split index
-            self.split_index = split_index = (split_index % train_mask.ndim)
+            self.split_index = split_index = split_index % train_mask.ndim
             train_mask = train_mask[:, split_index].squeeze()
             val_mask = val_mask[:, split_index].squeeze()
             if test_mask.ndim == 2:
@@ -416,7 +443,7 @@ class GraphDataset(pl.LightningDataModule):
         return g, label, feat, train_mask, val_mask, test_mask, num_class
 
     def compute_linear_gnn_logits(
-            self, features, n_per_label_examples, visible_nodes, bootstrap=False
+        self, features, n_per_label_examples, visible_nodes, bootstrap=False
     ):
         # Compute and save LinearGNN logits into a dict. Note the computation is on CPU as torch does not support
         # the gelss driver on GPU currently.
@@ -434,8 +461,8 @@ class GraphDataset(pl.LightningDataModule):
                 ref_nodes = visible_nodes
             Y_L = torch.nn.functional.one_hot(label[ref_nodes], num_class).float()
             with timer(
-                    f"Solving with CPU driver (N={len(ref_nodes)}, d={F.shape[1]}, k={num_class})",
-                    logger.debug,
+                f"Solving with CPU driver (N={len(ref_nodes)}, d={F.shape[1]}, k={num_class})",
+                logger.debug,
             ):
                 W = torch.linalg.lstsq(
                     F[ref_nodes.cpu()].cpu(), Y_L.cpu(), driver="gelss"
@@ -462,8 +489,8 @@ class GraphDataset(pl.LightningDataModule):
         if not os.path.exists(self.cache_f_name):
             g = g.to(self.preprocess_device)
             with timer(
-                    f"Computing {self.name} message passing and normalized predictions to file {self.cache_f_name}",
-                    logger.info,
+                f"Computing {self.name} message passing and normalized predictions to file {self.cache_f_name}",
+                logger.info,
             ):
                 dim = input_feats.size(1)
                 LP = torch.zeros(n_hops, g.number_of_nodes(), dim).to(
@@ -500,9 +527,9 @@ class GraphDataset(pl.LightningDataModule):
             features, unmasked_pred = torch.load(self.cache_f_name, map_location="cpu")
         if not os.path.exists(self.dist_f_name):
             with timer(
-                    f"Computing {self.name} conditional gaussian distances "
-                    f"and save to {self.dist_f_name}",
-                    logger.info,
+                f"Computing {self.name} conditional gaussian distances "
+                f"and save to {self.dist_f_name}",
+                logger.info,
             ):
                 # y_feat: n_nodes, n_channels, n_labels
                 y_feat = np.stack(
