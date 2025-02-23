@@ -20,7 +20,7 @@ from sklearn.manifold._utils import (
 )
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
-
+from torch_geometric.data import Batch
 from graphany.utils import logger, timer
 
 
@@ -279,6 +279,7 @@ class GraphDataset(pl.LightningDataModule):
             self.val_mask,
             self.test_mask,
             self.num_class,
+            self.batch,
         ) = self.load_dataset(self.data_init_args)
 
         self.n_nodes, self.n_edges = self.g.num_nodes(), self.g.num_edges()
@@ -380,56 +381,40 @@ class GraphDataset(pl.LightningDataModule):
 
             label = g.ndata["label"]
         elif self.data_source == "pyg":
+            num_graphs = len(dataset)
+            perm = torch.randperm(num_graphs)  # Random permutation of indices
+            shuffled_dataset = [dataset[i] for i in perm]  # Apply shuffle
+
+            train_size = int(0.6 * num_graphs)  # 60% training
+            val_size = int(0.2 * num_graphs)  # 20% validation
+            test_size = num_graphs - train_size - val_size  # Remaining for test
+
+            train_mask = torch.zeros(num_graphs, dtype=torch.bool)
+            val_mask = torch.zeros(num_graphs, dtype=torch.bool)
+            test_mask = torch.zeros(num_graphs, dtype=torch.bool)
+
+            train_mask[:train_size] = True
+            val_mask[train_size : train_size + val_size] = True
+            test_mask[train_size + val_size :] = True
+
+            dataset = Batch.from_data_list(shuffled_dataset)
+            batch = dataset.batch
+
             g = dgl.graph((dataset.edge_index[0], dataset.edge_index[1]))
-            n_nodes = dataset.x.shape[0]
-            num_class = dataset.num_classes
-            # get node feature
             import pdb
 
             pdb.set_trace()
+            n_nodes = dataset.x.shape[0]
+            num_class = dataset.num_classes
+            # get node feature
+
             # TODO: need to make sure the features fit the right graphs. Same for the labels and the adj matrix
             feat = dataset.x
             label = dataset.y
 
-            if (
-                hasattr(dataset, "train_mask")
-                and hasattr(dataset, "val_mask")
-                and hasattr(dataset, "test_mask")
-            ):
-                train_mask, val_mask, test_mask = (
-                    dataset.train_mask,
-                    dataset.val_mask,
-                    dataset.test_mask,
-                )
-            else:
-                if label.ndim > 1:
-                    raise NotImplementedError(
-                        "Multi-Label classification currently unsupported."
-                    )
-                logging.warning(
-                    f"No dataset split found for {self.name}, splitting with semi-supervised settings!!"
-                )
-                train_mask, val_mask, test_mask = get_data_split_masks(
-                    n_nodes, label, 20 * num_class, seed=self.cfg.seed
-                )
-
-                self.split_index = self.cfg.seed
         else:
             raise NotImplementedError(f"Unsupported {self.data_source=}")
-        if train_mask.ndim == 1:
-            pass  # only one train/val/test split
-        elif train_mask.ndim == 2:
-            # ! Multiple splits
-            # Modified: Use the ${seed} split if not specified!
-            split_index = self.data_init_args.get("split", self.cfg.seed)
-            # Avoid invalid split index
-            self.split_index = split_index = split_index % train_mask.ndim
-            train_mask = train_mask[:, split_index].squeeze()
-            val_mask = val_mask[:, split_index].squeeze()
-            if test_mask.ndim == 2:
-                test_mask = test_mask[:, split_index].squeeze()
-        else:
-            raise ValueError("train/val/test masks have more than 2 dimensions")
+
         print(
             f"{self.name} {g.num_nodes()} {g.num_edges()} {feat.shape[1]} {num_class} {len(train_mask.nonzero())}"
         )
@@ -441,7 +426,7 @@ class GraphDataset(pl.LightningDataModule):
         if self.cfg.to_bidirected:
             g = dgl.to_bidirected(g)
         g = dgl.to_simple(g)  # Remove duplicate edges.
-        return g, label, feat, train_mask, val_mask, test_mask, num_class
+        return g, label, feat, train_mask, val_mask, test_mask, num_class, batch
 
     def compute_linear_gnn_logits(
         self, features, n_per_label_examples, visible_nodes, bootstrap=False
@@ -485,6 +470,7 @@ class GraphDataset(pl.LightningDataModule):
         return {c: logits.to(device) for c, logits in pred_logits.items()}
 
     def prepare_prop_features_logits_and_dist_features(self, g, input_feats, n_hops):
+        # TODO: This function need to recieve batch as input and do this for each graph. also need to add pooling and concatenation
         # Calculate Low-pass features containing AX, A^2X and High-pass features
         # (I-A)X, and (I-A)^2X
         if not os.path.exists(self.cache_f_name):
