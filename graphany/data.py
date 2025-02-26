@@ -279,7 +279,6 @@ class GraphDataset(pl.LightningDataModule):
             self.val_mask,
             self.test_mask,
             self.num_class,
-            self.batch,
         ) = self.load_dataset(self.data_init_args)
 
         self.n_nodes, self.n_edges = self.g.num_nodes(), self.g.num_edges()
@@ -303,7 +302,7 @@ class GraphDataset(pl.LightningDataModule):
             self.unmasked_pred,
             self.dist,
         ) = self.prepare_prop_features_logits_and_dist_features(
-            self.g, self.feat, n_hops=cfg.n_hops, batch=self.batch
+            self.g, self.feat, n_hops=cfg.n_hops
         )
         # Remove the graph, as GraphAny doesn't use it in training
         del self.g
@@ -399,14 +398,10 @@ class GraphDataset(pl.LightningDataModule):
             test_mask[train_size + val_size :] = True
 
             dataset = Batch.from_data_list(shuffled_dataset)
-            batch = dataset.batch
+            self.batch = dataset.batch
 
             g = dgl.graph((dataset.edge_index[0], dataset.edge_index[1]))
-            import pdb
 
-            pdb.set_trace()
-
-            # TODO: need to make sure the features fit the right graphs. Same for the labels and the adj matrix
             feat = dataset.x
             label = dataset.y
 
@@ -424,25 +419,24 @@ class GraphDataset(pl.LightningDataModule):
         if self.cfg.to_bidirected:
             g = dgl.to_bidirected(g)
         g = dgl.to_simple(g)  # Remove duplicate edges.
-        return g, label, feat, train_mask, val_mask, test_mask, num_class, batch
+        return g, label, feat, train_mask, val_mask, test_mask, num_class
 
     def compute_linear_gnn_logits(
-        self, features, n_per_label_examples, visible_nodes, bootstrap=False, batch=None
+        self, features, n_per_label_examples, visible_nodes, bootstrap=False
     ):
         # Compute and save LinearGNN logits into a dict. Note the computation is on CPU as torch does not support
         # the gelss driver on GPU currently.
         preds = {}
         label, num_class, device = self.label, self.num_class, torch.device("cpu")
         label = label.to(device)
-        batch = batch.to(device)
-        import pdb
-
-        pdb.set_trace()
+        batch = self.batch.to(device)
         visible_nodes = visible_nodes.to(device)
         for channel, F in features.items():
             F = F.to(device)
             num_groups = batch.max() + 1  # Number of unique groups
-            F_summed = torch.zeros(num_groups, F.size(1), device=F.device)  # Preallocate result tensor
+            F_summed = torch.zeros(
+                num_groups, F.size(1), device=F.device
+            )  # Preallocate result tensor
             F_summed.scatter_add_(0, batch.unsqueeze(-1).expand_as(F), F)
             F = F_summed
             if bootstrap:
@@ -455,7 +449,7 @@ class GraphDataset(pl.LightningDataModule):
             with timer(
                 f"Solving with CPU driver (N={len(ref_graphs)}, d={F.shape[1]}, k={num_class})",
                 logger.debug,
-            ):  
+            ):
                 W = torch.linalg.lstsq(
                     F[ref_graphs.cpu()].cpu(), Y_L.cpu(), driver="gelss"
                 )[0]
@@ -463,7 +457,7 @@ class GraphDataset(pl.LightningDataModule):
 
         return preds
 
-    def compute_channel_logits(self, features, visible_nodes, sample, device, batch):
+    def compute_channel_logits(self, features, visible_nodes, sample, device):
         pred_logits = self.compute_linear_gnn_logits(
             {
                 c: features[c]
@@ -472,14 +466,12 @@ class GraphDataset(pl.LightningDataModule):
             self.cfg.n_per_label_examples,
             visible_nodes,
             bootstrap=sample,
-            batch=batch,
         )
         return {c: logits.to(device) for c, logits in pred_logits.items()}
 
     def prepare_prop_features_logits_and_dist_features(
-        self, g, input_feats, n_hops, batch
+        self, g, input_feats, n_hops
     ):
-        # TODO: This function need to recieve batch as input and do this for each graph. also need to add pooling and concatenation
         # Calculate Low-pass features containing AX, A^2X and High-pass features
         # (I-A)X, and (I-A)^2X
         if not os.path.exists(self.cache_f_name):
@@ -517,11 +509,12 @@ class GraphDataset(pl.LightningDataModule):
                     self.train_indices,
                     sample=False,
                     device=self.preprocess_device,
-                    batch=batch,
                 )
                 torch.save((features, unmasked_pred), self.cache_f_name)
         else:
             features, unmasked_pred = torch.load(self.cache_f_name, map_location="cpu")
+        # import pdb
+        # pdb.set_trace()
         if not os.path.exists(self.dist_f_name):
             with timer(
                 f"Computing {self.name} conditional gaussian distances "
@@ -529,6 +522,7 @@ class GraphDataset(pl.LightningDataModule):
                 logger.info,
             ):
                 # y_feat: n_nodes, n_channels, n_labels
+
                 y_feat = np.stack(
                     [unmasked_pred[c].cpu().numpy() for c in self.cfg.feat_channels],
                     axis=1,
