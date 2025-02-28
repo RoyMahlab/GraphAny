@@ -19,7 +19,7 @@ import torchmetrics
 from rich.pretty import pretty_repr
 import os
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 mean = lambda input: np.round(np.mean(input).item(), 2)
 
@@ -143,6 +143,9 @@ class InductiveNodeClassification(pl.LightningModule):
         """
         loss = {}
         for ds_name, batch_nodes in batch.items():
+            import pdb
+
+            pdb.set_trace()
             ds = self.combined_dataset.train_ds_dict[ds_name]
             train_target_idx = batch_nodes
             # Batch nodes are not visible to avoid trivial solution and overfitting
@@ -306,6 +309,7 @@ def main(cfg: DictConfig):
         "val": combined_dataset.val_dataloader(),
         "test": combined_dataset.test_dataloader(),
     }
+
     if cfg.total_steps > 0:
         trainer.fit(
             model,

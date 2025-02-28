@@ -7,7 +7,7 @@ defaults:
   - override /hydra/hydra_logging@_group_: none # Disable Hydra logging
   - override /hydra/job_logging@_group_: none # Disable Hydra logging
 
-wandb_run_name: random_alignment-CoCS
+wandb_run_name: baseline-PROTEINS
 
 # ! Path
 project_root: ${hydra:runtime.cwd}
@@ -28,7 +28,7 @@ seed: 0
 eval_freq: 5
 
 # ! Wandb settings
-project: GraphAny
+project: GraphAny-GraphClassification
 _alias: ${dataset}-${oc.select:model.alias,${oc.select:model.name,''}}
 alias: ${rename_alias:${_alias}}
 use_wandb: False
