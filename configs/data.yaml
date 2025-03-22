@@ -15,7 +15,10 @@ _trans_datasets: [ Arxiv, Product, Cora, Wisconsin ] # Used when identifying hel
 _all_datasets: [
   Arxiv,
   Cora,
-  CoCS
+  Pubmed,
+  Citeseer,
+  CoCS,
+  CoPhysics,
 ]
 
 _dataset_lookup:
