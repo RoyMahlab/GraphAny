@@ -437,7 +437,7 @@ class GraphDataset(pl.LightningDataModule):
             F_summed = torch.zeros(
                 num_groups, F.size(1), device=F.device
             )  # Preallocate result tensor
-            F_summed.scatter_add_(0, batch.unsqueeze(-1).expand_as(F), F)
+            F_summed.scatter_reduce_(0, batch.unsqueeze(-1).expand_as(F), F, reduce="mean")
             F = F_summed
             if bootstrap:
                 ref_graphs = sample_k_nodes_per_label(
