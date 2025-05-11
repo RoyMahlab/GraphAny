@@ -74,9 +74,9 @@ class InductiveNodeClassification(pl.LightningModule):
 
     def get_metric_name(self, ds_name, split):
         if ds_name in self.cfg.train_datasets:
-            return f"trans/{ds_name.lower()[:4]}_{split}_acc"
+            return f"trans/{ds_name.lower()[:5]}_{split}_acc"
         else:
-            return f"ind/{ds_name.lower()[:4]}_{split}_acc"
+            return f"ind/{ds_name.lower()[:5]}_{split}_acc"
 
     def configure_optimizers(self):
         # start with all the candidate parameters
@@ -143,9 +143,6 @@ class InductiveNodeClassification(pl.LightningModule):
         """
         loss = {}
         for ds_name, batch_nodes in batch.items():
-            import pdb
-
-            pdb.set_trace()
             ds = self.combined_dataset.train_ds_dict[ds_name]
             train_target_idx = batch_nodes
             # Batch nodes are not visible to avoid trivial solution and overfitting

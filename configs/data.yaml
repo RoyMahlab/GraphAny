@@ -15,7 +15,9 @@ _trans_datasets: []
 _all_datasets: [
   MUTAG,
   ENZYMES,
-  PROTEINS
+  PROTEINS,
+  NCI1,
+  NCI109
 ]
 
 _dataset_lookup:
@@ -117,3 +119,5 @@ _ds_meta_data:
   MUTAG: pyg, TUDataset.MUTAG # 188 598 7 2
   ENZYMES: pyg, TUDataset.ENZYMES # 600 1,812 3 6
   PROTEINS: pyg, TUDataset.PROTEINS # 1,113 3,615 3 2
+  NCI1: pyg, TUDataset.NCI1 # 4,110 11,855 37 2
+  NCI109: pyg, TUDataset.NCI109 # 4,128 11,427 37 2
