@@ -262,6 +262,8 @@ class GraphDataset(pl.LightningDataModule):
             }
         else:
             raise NotImplementedError(f"Unsupported {self.data_source=}")
+        if ds_init_args["_target_"].split(".")[-1] == "UPFD":
+            ds_init_args["feature"] = "bert"
         self.data_init_args = OmegaConf.create(ds_init_args)
         # self.cache_f_name = osp.join(
         #     cache_dir, f'{self.name}_{n_hops}')

@@ -14,10 +14,11 @@ _trans_datasets: []
 
 _all_datasets: [
   MUTAG,
-  ENZYMES,
   PROTEINS,
   NCI1,
-  NCI109
+  NCI109,
+  PolitiFact,
+  GossipCop
 ]
 
 _dataset_lookup:
@@ -121,3 +122,5 @@ _ds_meta_data:
   PROTEINS: pyg, TUDataset.PROTEINS # 1,113 3,615 3 2
   NCI1: pyg, TUDataset.NCI1 # 4,110 11,855 37 2
   NCI109: pyg, TUDataset.NCI109 # 4,128 11,427 37 2
+  PolitiFact: pyg, UPFD.politifact # 314 157 41,054 2
+  GossipCop: pyg, UPFD.gossipcop # 5464 2732 314,262 2
