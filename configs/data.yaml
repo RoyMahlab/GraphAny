@@ -17,42 +17,45 @@ _all_datasets: [
   Cora,
   FCora,
   Citeseer,
-  DBLP,
+  # DBLP,
   Pubmed,
   Wiki,
   WkCS,
-  Reddit,
+  # Reddit,
 
-  Product,
+  # Product,
   AmzComp,
   AmzPhoto,
-  BlogCatalog,
-  LastFMAsia,
-  Deezer,
+  # BlogCatalog,
+  # LastFMAsia,
+  # Deezer,
 
   CoCS,
   CoPhysics,
-  Cornell,
-  Texas,
-  Wisconsin,
+  # Cornell,
+  # Texas,
+  # Wisconsin,
   AirBrazil,
   AirUS,
   AirEU,
 
   Chameleon,
-  Actor,
+  # Actor,
   Squirrel,
   Roman,
-  AmzRatings,
-  Minesweeper,
-  Tolokers,
-  Questions,
+  # AmzRatings,
+  # Minesweeper,
+  # Tolokers,
+  # Questions,
 ]
 
 _dataset_lookup:
   Debug:
     train: [ Wisconsin ]
     eval: [ Texas ]
+  WikiXAll:
+    train: [ Wiki ]
+    eval: ${_all_datasets}
   CoraXAll:
     train: [ Cora ]
     eval: ${_all_datasets}

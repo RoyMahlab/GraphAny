@@ -229,7 +229,7 @@ def main(cfg: DictConfig):
     # Define the default step metric for all metrics
     wandb.define_metric("*", step_metric="epoch")
     if torch.cuda.is_available() and cfg.preprocess_device == "gpu":
-        preprocess_device = torch.device("cuda")
+        preprocess_device = torch.device("cuda:1")
     else:
         preprocess_device = torch.device("cpu")
 
@@ -270,6 +270,7 @@ def main(cfg: DictConfig):
         check_val_every_n_epoch=cfg.eval_freq,
         logger=logger,
         accelerator="gpu" if torch.cuda.is_available() and cfg.gpus > 0 else "cpu",
+        devices=[1] if torch.cuda.is_available() and cfg.gpus > 0 else None,  # <-- use CUDA device 1
         default_root_dir=cfg.dirs.lightning_root,
     )
     dataloaders = {
@@ -277,17 +278,23 @@ def main(cfg: DictConfig):
         "val": combined_dataset.val_dataloader(),
         "test": combined_dataset.test_dataloader(),
     }
+    from time import time 
     if cfg.total_steps > 0:
+        start_time = time()
         trainer.fit(
             model,
             train_dataloaders=dataloaders["train"],
             val_dataloaders=dataloaders["val"],
         )
+        end_time = time()
     trainer.validate(model, dataloaders=dataloaders["val"])
     trainer.test(model, dataloaders=dataloaders["test"])
     final_results = model.res_dict
     logger.critical(pretty_repr(final_results))
     logger.wandb_summary_update(final_results, finish_wandb=True)
+    print(
+        f"Training time: {end_time - start_time:.2f} seconds"
+    )
 
 
 if __name__ == "__main__":
