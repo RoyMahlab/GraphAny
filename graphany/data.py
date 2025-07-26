@@ -241,6 +241,8 @@ class GraphDataset(pl.LightningDataModule):
             if len(components) == 2:  # If sub-dataset
                 ds_init_args["_target_"] = f"torch_geometric.datasets.{components[0]}"
                 ds_init_args["name"] = components[1]
+            if ds_init_args["_target_"].split(".")[-1] == "UPFD":
+                ds_init_args["feature"] = "bert"
         elif self.data_source == "dgl":
             ds_init_args = {
                 "_target_": f"dgl.data.{ds_alias}",
