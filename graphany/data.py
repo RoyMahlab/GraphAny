@@ -305,7 +305,7 @@ class GraphDataset(pl.LightningDataModule):
             self.g, self.feat, n_hops=cfg.n_hops
         )
         # Remove the graph, as GraphAny doesn't use it in training
-        del self.g
+        # del self.g
         del self.feat
         torch.cuda.empty_cache()
 

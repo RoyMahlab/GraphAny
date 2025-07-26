@@ -10,6 +10,7 @@ from graphany.utils.experiment import init_experiment
 from graphany.data import GraphDataset, CombinedDataset
 from graphany.model import GraphAny
 
+import torch.nn.functional as F
 import torch
 import hydra
 from omegaconf import DictConfig
@@ -18,10 +19,49 @@ import numpy as np
 import torchmetrics
 from rich.pretty import pretty_repr
 import os
+from torch_geometric.utils import negative_sampling
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 mean = lambda input: np.round(np.mean(input).item(), 2)
+
+
+def get_edge_index_for_nodes(g, node_indices):
+    # Step 1: Induce a subgraph from the given nodes
+    # `preserve_nodes=True` keeps original node IDs
+    subg = g.subgraph(node_indices.to("cpu"))
+
+    # Step 2: Extract edge index in COO format
+    src, dst = subg.edges()
+    edge_index = torch.stack([src, dst], dim=0)  # shape [2, num_edges]
+
+    return edge_index
+
+
+def generate_edge_label_index(edge_label_index, num_nodes):
+    num_neg_samples = edge_label_index.size(1)
+    neg_edge_index = negative_sampling(
+        edge_label_index, num_nodes=num_nodes, num_neg_samples=num_neg_samples
+    )
+
+    edge_label_index = torch.cat([edge_label_index, neg_edge_index], dim=1)
+    perm = torch.randperm(
+        edge_label_index.size(1)
+    )  # Generate a random permutation of indices
+    edge_label_index = edge_label_index[:, perm]  # Apply permutation
+
+    edge_label_index = edge_label_index[:, :num_neg_samples]
+
+    edge_label = torch.cat(
+        [torch.ones(edge_label_index.size(1)), torch.zeros(neg_edge_index.size(1))],
+        dim=0,
+    )
+
+    edge_label = edge_label[perm]  # Shuffle edge labels to match shuffled edge indices
+    edge_label = edge_label[:num_neg_samples]  # Keep only the first num_neg_samples
+    # Create a new Data object with the additional attribute
+
+    return edge_label_index, edge_label
 
 
 class InductiveNodeClassification(pl.LightningModule):
@@ -51,11 +91,11 @@ class InductiveNodeClassification(pl.LightningModule):
         ]
         for split in ("val", "test"):
             self.metrics[split] = {
-                k: torchmetrics.Accuracy(task="multiclass", num_classes=v.num_class)
+                k: torchmetrics.AUROC(task="binary", dist_sync_on_step=False)
                 for k, v in combined_dataset.eval_ds_dict.items()
             }
 
-        self.criterion = torch.nn.CrossEntropyLoss()
+        self.criterion = F.binary_cross_entropy_with_logits
 
     def on_train_end(self):
         checkpoint_path = f"{self.cfg.dirs.output}{self.cfg.dataset}_val_acc={self.res_dict['val_acc']}.pt"
@@ -160,9 +200,13 @@ class InductiveNodeClassification(pl.LightningModule):
             )
 
             preds = self.predict(ds, train_target_idx, input, is_training=True)
-            loss[f"loss/{ds_name}_loss"] = self.criterion(
-                preds, ds.label[train_target_idx]
+            edge_index = get_edge_index_for_nodes(ds.g, train_target_idx)
+            edge_label_index, edge_label = generate_edge_label_index(
+                edge_index, preds.size(0)
             )
+            src, dst = edge_label_index
+            pred = torch.sigmoid((preds[src] * preds[dst]).sum(dim=-1))  # Dot product
+            loss[f"loss/{ds_name}_loss"] = self.criterion(pred, edge_label.float().to(self.device))
 
         detached_loss = {k: v.detach().cpu() for k, v in loss.items()}
         avg_loss = mean(list(detached_loss.values()))
@@ -181,8 +225,14 @@ class InductiveNodeClassification(pl.LightningModule):
             processed_feat = ds.unmasked_pred
             preds = self.predict(
                 ds, eval_idx, processed_feat, is_training=False
-            ).argmax(-1)
-            self.metrics[split][ds_name].update(preds, ds.label[eval_idx])
+            )#.argmax(-1)
+            edge_index = get_edge_index_for_nodes(ds.g, eval_idx)
+            edge_label_index, edge_label = generate_edge_label_index(
+                edge_index, preds.size(0)
+            )
+            src, dst = edge_label_index
+            pred = torch.sigmoid((preds[src] * preds[dst]).sum(dim=-1))  # Dot product
+            self.metrics[split][ds_name].update(pred, edge_label.to(self.device))
 
     def validation_step(self, batch, batch_idx):
         self.evaluation_step("val", batch, batch_idx)
@@ -291,6 +341,7 @@ def main(cfg: DictConfig):
         save_last=True,  # ensures only the last checkpoint is kept
         save_on_train_epoch_end=True,  # save at the end of training epoch
     )
+    # strategy = DDPStrategy(find_unused_parameters=True) if torch.cuda.is_available() and cfg.gpus > 1 else "auto"
     trainer = pl.Trainer(
         max_epochs=cfg.total_steps,
         callbacks=[checkpoint_callback],
@@ -298,8 +349,9 @@ def main(cfg: DictConfig):
         check_val_every_n_epoch=cfg.eval_freq,
         logger=logger,
         accelerator="gpu" if torch.cuda.is_available() and cfg.gpus > 0 else "cpu",
+        devices=1,
         default_root_dir=cfg.dirs.lightning_root,
-        strategy=DDPStrategy(find_unused_parameters=True),
+        strategy="auto",
     )
     dataloaders = {
         "train": combined_dataset.train_dataloader(),

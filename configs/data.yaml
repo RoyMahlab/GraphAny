@@ -28,6 +28,9 @@ _dataset_lookup:
   CoraXAll:
     train: [ Cora ]
     eval: ${_all_datasets}
+  PubMedXAll:
+    train: [ Pubmed ]
+    eval: ${_all_datasets}
   WisXAll:
     train: [ Wisconsin ]
     eval: ${_all_datasets}
