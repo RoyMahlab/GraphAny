@@ -40,6 +40,9 @@ _dataset_lookup:
   CoCSXAll:
     train: [ CoCS ]
     eval: ${_all_datasets}
+  CoPhysicsXAll:
+    train: [ CoPhysics ]
+    eval: ${_all_datasets}
   ProdXAll:
     train: [ Product ]
     eval: ${_all_datasets}
