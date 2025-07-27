@@ -19,6 +19,7 @@ _all_datasets: [
   Citeseer,
   CoCS,
   CoPhysics,
+  Wiki
 ]
 
 _dataset_lookup:
@@ -40,6 +41,10 @@ _dataset_lookup:
   ProdXAll:
     train: [ Product ]
     eval: ${_all_datasets}
+  PubmedXAll:
+    train: [ Pubmed ]
+    eval: ${_all_datasets}
+  
 
   # Train on Arxiv, inference on Cora and Citeseer
   CoraCiteInference:
