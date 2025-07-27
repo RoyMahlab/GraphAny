@@ -63,7 +63,7 @@ def generate_edge_label_index(edge_label_index, num_nodes):
 
     return edge_label_index, edge_label
 
-
+from sklearn.metrics import roc_auc_score
 class InductiveNodeClassification(pl.LightningModule):
     def __init__(self, cfg, combined_dataset, checkpoint=None):
         super().__init__()
@@ -91,7 +91,7 @@ class InductiveNodeClassification(pl.LightningModule):
         ]
         for split in ("val", "test"):
             self.metrics[split] = {
-                k: torchmetrics.AUROC(task="binary", dist_sync_on_step=False)
+                k: []
                 for k, v in combined_dataset.eval_ds_dict.items()
             }
 
@@ -155,7 +155,7 @@ class InductiveNodeClassification(pl.LightningModule):
         # move all datasets to the correct GPU device
         print(f"moving train and eval datasets to {self.device}")
         self.combined_dataset.to(self.device)
-        self.move_metrics_to_device()
+        # self.move_metrics_to_device()
 
     def move_metrics_to_device(self):
         for metrics_dict in self.metrics.values():
@@ -204,8 +204,15 @@ class InductiveNodeClassification(pl.LightningModule):
             edge_label_index, edge_label = generate_edge_label_index(
                 edge_index, preds.size(0)
             )
+            
             src, dst = edge_label_index
-            pred = torch.sigmoid((preds[src] * preds[dst]).sum(dim=-1))  # Dot product
+            try:
+                pred = torch.sigmoid((preds[src] * preds[dst]).sum(dim=-1))  # Dot product
+            except Exception as e:
+                raise RuntimeError(
+                    f"Error in computing dot product for dataset {ds_name} with edge_label_index {edge_label_index} and preds shape {preds.shape}. "
+                    f"Exception: {e}"
+                )
             loss[f"loss/{ds_name}_loss"] = self.criterion(pred, edge_label.float().to(self.device))
 
         detached_loss = {k: v.detach().cpu() for k, v in loss.items()}
@@ -214,7 +221,7 @@ class InductiveNodeClassification(pl.LightningModule):
         return sum(loss.values())
 
     def evaluation_step(self, split, batch, batch_idx):
-        self.move_metrics_to_device()
+        # self.move_metrics_to_device()
         for ds_name, eval_idx in batch.items():
             if eval_idx is None:  # Skip if dataset is already evaluated (empty batch)
                 continue
@@ -232,7 +239,8 @@ class InductiveNodeClassification(pl.LightningModule):
             )
             src, dst = edge_label_index
             pred = torch.sigmoid((preds[src] * preds[dst]).sum(dim=-1))  # Dot product
-            self.metrics[split][ds_name].update(pred, edge_label.to(self.device))
+            # self.metrics[split][ds_name].update(pred, edge_label.to(self.device))
+            self.metrics[split][ds_name].append(roc_auc_score(edge_label.numpy(), pred.detach().cpu().numpy()))
 
     def validation_step(self, batch, batch_idx):
         self.evaluation_step("val", batch, batch_idx)
@@ -245,9 +253,9 @@ class InductiveNodeClassification(pl.LightningModule):
         res = {}
         for ds_name, metric in self.metrics[split].items():
             metric_name = self.get_metric_name(ds_name, split)
-            accuracy = metric.compute().cpu().numpy()
+            accuracy = sum(metric) / len(metric) if metric else 0.0
             res[metric_name] = np.round(accuracy * 100, 2)
-            metric.reset()  # Reset metrics for the next epoch
+            metric = []  # Reset metrics for the next epoch
 
         combined_res = {f"{split}_acc": np.round(sum(res.values()) / len(res), 2)}
         combined_res[f"trans_{split}_acc"] = mean(

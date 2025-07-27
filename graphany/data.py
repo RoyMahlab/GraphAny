@@ -262,6 +262,13 @@ class GraphDataset(pl.LightningDataModule):
             }
         else:
             raise NotImplementedError(f"Unsupported {self.data_source=}")
+        ds_init_args["transform"] = {
+            "_target_": "torch_geometric.transforms.RandomNodeSplit",
+            "split": "train_rest",  # Ensures training gets the remainder
+            "num_val": 0.2,
+            "num_test": 0.2,
+        }
+        ds_init_args["force_reload"] = True
         self.data_init_args = OmegaConf.create(ds_init_args)
         # self.cache_f_name = osp.join(
         #     cache_dir, f'{self.name}_{n_hops}')
@@ -340,7 +347,6 @@ class GraphDataset(pl.LightningDataModule):
 
     def load_dataset(self, data_init_args):
         dataset = instantiate(data_init_args)
-
         if self.data_source == "ogb":
             split_idx = dataset.get_idx_split()
             train_indices, valid_indices, test_indices = (
