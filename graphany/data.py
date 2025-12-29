@@ -386,28 +386,50 @@ class GraphDataset(pl.LightningDataModule):
         elif self.data_source == "pyg":
             num_class = dataset.num_classes
             num_graphs = len(dataset)
-            perm = torch.randperm(num_graphs)  # Random permutation of indices
-            shuffled_dataset = [dataset[i] for i in perm]  # Apply shuffle
+            self.num_graphs = num_graphs
+            if num_graphs != 1:
+                perm = torch.randperm(num_graphs)  # Random permutation of indices
+                shuffled_dataset = [dataset[i] for i in perm]  # Apply shuffle
 
-            train_size = int(0.6 * num_graphs)  # 60% training
-            val_size = int(0.2 * num_graphs)  # 20% validation
-            test_size = num_graphs - train_size - val_size  # Remaining for test
+                train_size = int(0.6 * num_graphs)  # 60% training
+                val_size = int(0.2 * num_graphs)  # 20% validation
+                test_size = num_graphs - train_size - val_size  # Remaining for test
 
-            train_mask = torch.zeros(num_graphs, dtype=torch.bool)
-            val_mask = torch.zeros(num_graphs, dtype=torch.bool)
-            test_mask = torch.zeros(num_graphs, dtype=torch.bool)
+                train_mask = torch.zeros(num_graphs, dtype=torch.bool)
+                val_mask = torch.zeros(num_graphs, dtype=torch.bool)
+                test_mask = torch.zeros(num_graphs, dtype=torch.bool)
 
-            train_mask[:train_size] = True
-            val_mask[train_size : train_size + val_size] = True
-            test_mask[train_size + val_size :] = True
+                train_mask[:train_size] = True
+                val_mask[train_size : train_size + val_size] = True
+                test_mask[train_size + val_size :] = True
 
-            dataset = Batch.from_data_list(shuffled_dataset)
-            self.batch = dataset.batch
+                dataset = Batch.from_data_list(shuffled_dataset)
+                self.batch = dataset.batch
 
-            g = dgl.graph((dataset.edge_index[0], dataset.edge_index[1]))
+                g = dgl.graph((dataset.edge_index[0], dataset.edge_index[1]))
 
-            feat = dataset.x
-            label = dataset.y
+                feat = dataset.x
+                label = dataset.y
+            else:
+                g = dgl.graph((dataset.edge_index[0], dataset.edge_index[1]))
+                n_nodes = dataset.x.shape[0]
+                num_class = dataset.num_classes
+                # get node feature
+                feat = dataset.x
+                label = dataset.y
+                if (
+                    hasattr(dataset, "train_mask")
+                    and hasattr(dataset, "val_mask")
+                    and hasattr(dataset, "test_mask")
+                ):
+                    train_mask, val_mask, test_mask = (
+                        dataset.train_mask,
+                        dataset.val_mask,
+                        dataset.test_mask,
+                    )
+                
+                
+                
 
         else:
             raise NotImplementedError(f"Unsupported {self.data_source=}")
@@ -433,16 +455,18 @@ class GraphDataset(pl.LightningDataModule):
         preds = {}
         label, num_class, device = self.label, self.num_class, torch.device("cpu")
         label = label.to(device)
-        batch = self.batch.to(device)
+        if self.num_graphs > 1:
+            batch = self.batch.to(device)
         visible_nodes = visible_nodes.to(device)
         for channel, F in features.items():
             F = F.to(device)
-            num_groups = batch.max() + 1  # Number of unique groups
-            F_summed = torch.zeros(
-                num_groups, F.size(1), device=F.device
-            )  # Preallocate result tensor
-            F_summed.scatter_reduce_(0, batch.unsqueeze(-1).expand_as(F), F, reduce="mean")
-            F = F_summed
+            if self.num_graphs > 1:
+                num_groups = batch.max() + 1  # Number of unique groups
+                F_summed = torch.zeros(
+                    num_groups, F.size(1), device=F.device
+                )  # Preallocate result tensor
+                F_summed.scatter_reduce_(0, batch.unsqueeze(-1).expand_as(F), F, reduce="mean")
+                F = F_summed
             if bootstrap:
                 ref_graphs = sample_k_nodes_per_label(
                     label, visible_nodes, n_per_label_examples, num_class
@@ -517,8 +541,6 @@ class GraphDataset(pl.LightningDataModule):
                 torch.save((features, unmasked_pred), self.cache_f_name)
         else:
             features, unmasked_pred = torch.load(self.cache_f_name, map_location="cpu")
-        # import pdb
-        # pdb.set_trace()
         if not os.path.exists(self.dist_f_name):
             with timer(
                 f"Computing {self.name} conditional gaussian distances "
