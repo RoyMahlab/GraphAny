@@ -13,40 +13,43 @@ eval_datasets: ${oc.select:_dataset_lookup.${dataset}.eval,${dataset}}
 _trans_datasets: [ Arxiv, Product, Cora, Wisconsin ] # Used when identifying heldout datasets.
 
 _all_datasets: [
-  Arxiv,
-  Cora,
-  FCora,
-  Citeseer,
+  # Arxiv,
+  # Cora,
+  # FCora,
+  # Citeseer,
   # DBLP,
-  Pubmed,
-  Wiki,
-  WkCS,
+  # Pubmed,
+  # Wiki,
+  # WkCS,
   # Reddit,
 
   # Product,
-  AmzComp,
-  AmzPhoto,
+  # AmzComp,
+  # AmzPhoto,
   # BlogCatalog,
   # LastFMAsia,
   # Deezer,
 
-  CoCS,
-  CoPhysics,
+  # CoCS,
+  # CoPhysics,
   # Cornell,
   # Texas,
   # Wisconsin,
-  AirBrazil,
-  AirUS,
-  AirEU,
+  # AirBrazil,
+  # AirUS,
+  # AirEU,
 
-  Chameleon,
+  # Chameleon,
   # Actor,
-  Squirrel,
-  Roman,
+  # Squirrel,
+  # Roman,
   # AmzRatings,
   # Minesweeper,
   # Tolokers,
   # Questions,
+  BlueSkyQuotes,
+  BlueSkyReplies,
+  BlueSkyReposts
 ]
 
 _dataset_lookup:
@@ -135,3 +138,7 @@ _ds_meta_data:
   #among users. The related classification task is the prediction
   #of gender using the friendship graph and the artists liked.
   Deezer: pyg, DeezerEurope # 28,281, 185,504, 128, 2
+
+  BlueSkyQuotes: graphbench, bluesky.BlueSkyDataset.bluesky_quotes # 130K 1.2M 100 3
+  BlueSkyReplies: graphbench, bluesky.BlueSkyDataset.bluesky_replies # 130K 1.2M 100 3
+  BlueSkyReposts: graphbench, bluesky.BlueSkyDataset.bluesky_reposts # 130K 1.2M 100 3

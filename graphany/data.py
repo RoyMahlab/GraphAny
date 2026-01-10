@@ -22,6 +22,31 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 from graphany.utils import logger, timer
+from torch_geometric.data import Data
+
+def merge_data_list(data_list):
+    xs, edge_indices = [], []
+    masks = []
+    offset = 0
+    for data in data_list:
+        num_nodes = data.x.shape[0]
+        xs.append(data.x)
+        edge_indices.append(data.edge_index + offset)
+        masks.append(torch.arange(num_nodes) + offset)
+        offset += num_nodes
+    num_nodes = masks[-1].max().item() + 1
+    masks_ = torch.zeros((3, num_nodes), dtype=torch.bool)
+    for i, mask in enumerate(masks):
+        masks_[i][mask] = True
+
+    return Data(
+        x=torch.cat(xs, dim=0),
+        edge_index=torch.cat(edge_indices, dim=1),
+        train_mask=masks_[0],   
+        val_mask=masks_[1],
+        test_mask=masks_[2],
+        y=torch.cat([data.y for data in data_list], dim=0),
+    )
 
 
 def get_entropy_normed_cond_gaussian_prob(X, entropy, metric="euclidean"):
@@ -202,7 +227,7 @@ class GraphDataset(pl.LightningDataModule):
         self.permute_label = permute_label  # For checking label equivariance
         self.val_test_batch_size = val_test_batch_size
         self.preprocess_device = preprocess_device
-
+        self.regression = False
         self.n_hops = n_hops
 
         self.data_source, ds_alias = cfg["_ds_meta_data"][ds_name].split(", ")
@@ -236,6 +261,14 @@ class GraphDataset(pl.LightningDataModule):
                 "_target_": target,
                 "raw_dir": f"{cfg.dirs.data_storage}{self.data_source}/",
                 "url": url,
+            }
+        elif self.data_source == "graphbench":
+            self.regression = True
+            components = ds_alias.split(".")
+            ds_init_args = {
+                "_target_": f"graphbench.datasets.{components[0]}.{components[1]}",
+                "name": components[2],
+                "root": f"{cfg.dirs.data_storage}{self.data_source}/{ds_alias}/"
             }
         else:
             raise NotImplementedError(f"Unsupported {self.data_source=}")
@@ -280,7 +313,7 @@ class GraphDataset(pl.LightningDataModule):
         ) = self.prepare_prop_features_logits_and_dist_features(
             self.g, self.feat, n_hops=cfg.n_hops
         )
-        # Remove the graph, as GraphAny doesn't use it in training
+        # Remove the graph and features, as GraphAny doesn't use them in training
         del self.g
         del self.feat
         torch.cuda.empty_cache()
@@ -315,8 +348,14 @@ class GraphDataset(pl.LightningDataModule):
                 setattr(self, attr, to_device(getattr(self, attr)))
 
     def load_dataset(self, data_init_args):
-        dataset = instantiate(data_init_args)
-
+        if self.data_source != "graphbench":
+            dataset = instantiate(data_init_args)
+        else:
+            train_data = instantiate(data_init_args, split="train")
+            val_data = instantiate(data_init_args, split="val")
+            test_data = instantiate(data_init_args, split="test")
+            dataset = merge_data_list([train_data, val_data, test_data])
+        
         if self.data_source == "ogb":
             split_idx = dataset.get_idx_split()
             train_indices, valid_indices, test_indices = (
@@ -384,8 +423,17 @@ class GraphDataset(pl.LightningDataModule):
                 train_mask, val_mask, test_mask = get_data_split_masks(
                     n_nodes, label, 20 * num_class, seed=self.cfg.seed
                 )
+                self.split_index = self.cfg.seed         
+        elif self.data_source == "graphbench":
+            g = dgl.graph((dataset.edge_index[0], dataset.edge_index[1]))
+            feat = dataset.x
+            label = dataset.y
+            num_class = label.shape[1]
 
-                self.split_index = self.cfg.seed
+            train_mask = dataset.train_mask
+            val_mask = dataset.val_mask
+            test_mask = dataset.test_mask
+
         else:
             raise NotImplementedError(f"Unsupported {self.data_source=}")
         if train_mask.ndim == 1:
@@ -432,7 +480,7 @@ class GraphDataset(pl.LightningDataModule):
                 )
             else:
                 ref_nodes = visible_nodes
-            Y_L = torch.nn.functional.one_hot(label[ref_nodes], num_class).float()
+            Y_L = torch.nn.functional.one_hot(label[ref_nodes], num_class).float() if not self.regression else label[ref_nodes]
             with timer(
                     f"Solving with CPU driver (N={len(ref_nodes)}, d={F.shape[1]}, k={num_class})",
                     logger.debug,
