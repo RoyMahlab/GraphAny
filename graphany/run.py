@@ -45,7 +45,7 @@ class InductiveNodeClassification(pl.LightningModule):
         ]
         for split in ("val", "test"):
             self.metrics[split] = {
-                k: torchmetrics.Accuracy(task="multiclass", num_classes=v.num_class)
+                k: torchmetrics.Accuracy(task="multiclass", num_classes=v.num_class) if not v.regression else torchmetrics.MeanAbsoluteError()
                 for k, v in combined_dataset.eval_ds_dict.items()
             }
 
@@ -175,7 +175,9 @@ class InductiveNodeClassification(pl.LightningModule):
             processed_feat = ds.unmasked_pred
             preds = self.predict(
                 ds, eval_idx, processed_feat, is_training=False
-            ).argmax(-1)
+            ).argmax(-1) if not ds.regression else self.predict(
+                ds, eval_idx, processed_feat, is_training=False
+            ).squeeze()
             self.metrics[split][ds_name].update(preds, ds.label[eval_idx])
 
     def validation_step(self, batch, batch_idx):
