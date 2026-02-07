@@ -70,7 +70,7 @@ class InductiveNodeClassification(pl.LightningModule):
         if ds_name in self.cfg.train_datasets:
             return f"trans/{ds_name.lower()[:4]}_{split}_acc"
         else:
-            return f"ind/{ds_name.lower()[:4]}_{split}_acc"
+            return f"ind/{ds_name.lower()[:4]}_{split}_mae"
 
     def configure_optimizers(self):
         # start with all the candidate parameters
@@ -192,7 +192,7 @@ class InductiveNodeClassification(pl.LightningModule):
         for ds_name, metric in self.metrics[split].items():
             metric_name = self.get_metric_name(ds_name, split)
             accuracy = metric.compute().cpu().numpy()
-            res[metric_name] = np.round(accuracy * 100, 2)
+            res[metric_name] = np.round(accuracy * 100, 2) if not isinstance(metric, torchmetrics.MeanAbsoluteError) else np.round(accuracy, 2)
             metric.reset()  # Reset metrics for the next epoch
 
         combined_res = {f"{split}_acc": np.round(sum(res.values()) / len(res), 2)}

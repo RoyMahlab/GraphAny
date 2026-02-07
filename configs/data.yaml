@@ -1,7 +1,7 @@
 # @package _global_
 
 # ! Dataset Preprocessing
-preprocess_device: gpu # Set to cpu if your GPU memory is below 32GB
+preprocess_device: cpu # Set to cpu if your GPU memory is below 32GB
 add_self_loop: false
 to_bidirected: true
 n_hops: 2
@@ -14,7 +14,7 @@ _trans_datasets: [ Arxiv, Product, Cora, Wisconsin ] # Used when identifying hel
 
 _all_datasets: [
   # Arxiv,
-  # Cora,
+  Cora,
   # FCora,
   # Citeseer,
   # DBLP,
@@ -47,9 +47,9 @@ _all_datasets: [
   # Minesweeper,
   # Tolokers,
   # Questions,
-  BlueSkyQuotes,
-  BlueSkyReplies,
-  BlueSkyReposts
+  Quotes,
+  Replies,
+  Reposts
 ]
 
 _dataset_lookup:
@@ -62,6 +62,11 @@ _dataset_lookup:
   CoraXAll:
     train: [ Cora ]
     eval: ${_all_datasets}
+
+  PubmedXAll:
+    train: [ Pubmed ]
+    eval: ${_all_datasets}
+
   WisXAll:
     train: [ Wisconsin ]
     eval: ${_all_datasets}
@@ -139,6 +144,6 @@ _ds_meta_data:
   #of gender using the friendship graph and the artists liked.
   Deezer: pyg, DeezerEurope # 28,281, 185,504, 128, 2
 
-  BlueSkyQuotes: graphbench, bluesky.BlueSkyDataset.bluesky_quotes # 130K 1.2M 100 3
-  BlueSkyReplies: graphbench, bluesky.BlueSkyDataset.bluesky_replies # 130K 1.2M 100 3
-  BlueSkyReposts: graphbench, bluesky.BlueSkyDataset.bluesky_reposts # 130K 1.2M 100 3
+  Quotes: graphbench, bluesky.BlueSkyDataset.bluesky_quotes # 130K 1.2M 100 3
+  Replies: graphbench, bluesky.BlueSkyDataset.bluesky_replies # 130K 1.2M 100 3
+  Reposts: graphbench, bluesky.BlueSkyDataset.bluesky_reposts # 130K 1.2M 100 3
